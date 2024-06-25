@@ -229,7 +229,7 @@ def main():
      { "enabled" : True, "endpoint" : "_snapshot", "FileName" : "snapshot.json", 'priv_cluster': ['monitor_snapshot','create_snapshot','manage','all'] },
      { "enabled" : True, "endpoint" : "_transform", "FileName" : "transform.json", 'split_by_name_list' : True, 'split_key': 'transforms', 'split_key_id' : 'id', 'priv_cluster': ['monitor_data_frame_transforms','monitor_transform','manage_data_frame_transforms','manage_transform','monitor','manage','all'] },
      { "enabled" : True, "endpoint" : "_watcher/_query/watches", "FileName" : "watcher_query_watches.json", 'split_by_name_list' : True, 'split_key': 'watches', 'split_key_id' : '_id', 'priv_cluster': ['monitor_watcher','manage_watcher','monitor','manage','all'] },
-     # remove key 'priv_index_name' if this api call has issues
+     # remove key 'priv_index_name' if this api call has issues (possible with different account permissions)
      { "enabled" : True, "endpoint" : ".watches/_search", "FileName" : "watches_search.json", 'split_by_hits_hits': True, 'split_key_id' : '_id', 'priv_index_name': '.watches', 'priv_index': ['read','all'] }, 
       ]
 
@@ -295,7 +295,7 @@ def main():
      { "enabled" : True, "endpoint" : "_searchable_snapshots/stats", "FileName" : "searchable_snapshots_stats.json", 'priv_cluster': ['manage','all'] }, #returns 404 if no searchable snapshot
      { "enabled" : True, "endpoint" : "/_searchable_snapshots/cache/stats", "FileName" : "searchable_snapshots_cache_stats.json", 'priv_cluster': ['manage','all'] },
      { "enabled" : True, "endpoint" : "_snapshot/_status", "FileName" : "snapshot_status.json", 'priv_cluster': ['monitor_snapshot','create_snapshot','manage','all'] }, 
-     { "endpoint" : "_stats", "FileName" : "stats.json", "enabled" : True },
+     { "enabled" : True, "endpoint" : "_stats", "FileName" : "stats.json" },
      { "enabled" : True, "endpoint" : "_transform/_stats", "FileName" : "transform_stats.json", 'split_by_name_list' : True, 'split_key': 'transforms', 'split_key_id' : 'id', 'priv_cluster': ['monitor_data_frame_transforms','monitor_transform','manage_data_frame_transforms','manage_transform,monitor,manage','all']}, 
      { "enabled" : True, "endpoint" : "_watcher/stats", "FileName" : "watcher_stats.json", 'priv_cluster': ['monitor_watcher','manage_watcher','monitor','manage','all'] }, 
      { "enabled" : True, "endpoint" : "_xpack/usage", "FileName" : "xpack_usage.json", 'priv_cluster': ['monitor','manage','all'] }
