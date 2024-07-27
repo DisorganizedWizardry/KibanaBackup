@@ -108,7 +108,7 @@ def WriteFileJSON(config, FileName, message):
       print ("Writing file %s" % FileName)
     with open(FilePath, 'w') as outfile:
       #json.dump(message, outfile)
-      json.dump(message, outfile, sort_keys=True, indent=4)
+      json.dump(message, outfile, indent=4)
 
 def WriteFileTXT(config, FileName, message):
   FilePath = config['backup_folder'] +'/' + FileName
