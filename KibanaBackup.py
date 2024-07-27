@@ -100,7 +100,7 @@ def CalcChecksumFile(filename):
 def WriteFileJSON(config, FileName, message):
   FilePath = config['backup_folder'] +'/' + FileName
   with open(FilePath, 'w') as outfile:
-    json.dump(message, outfile)
+    json.dump(message, outfile, indent=4)
 
 #Write ndjson file from byte array
 def WriteFileObject(config, FileName, message):
