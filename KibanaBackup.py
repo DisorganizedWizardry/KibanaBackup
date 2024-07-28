@@ -1,8 +1,8 @@
 """
-Backup Kibana spaces and objects using the Kibana api
+Backup Elastisearch objects through the api
 
 usage:
-  KibanaBackup.py --config=<filename>
+  ElasticBackup.py --config=<filename>
 """
 import json
 import requests
@@ -11,147 +11,183 @@ import configparser
 from docopt import docopt
 import hashlib
 
-import urllib3
-urllib3.disable_warnings()
 
-def GetKibanaAPI (config, url_api ):
+def GetElasticAPI (config, url_api ):
+  if config['verbose']:
+    print ("API request for : %s" % url_api)
+
   headers = {'Content-Type': 'application/json',}
-
   if config['tls']:
     method = 'https://'
   else:
     method = 'http://'
-
   if config['auth']:
     authentication = config['username'] + ":" + config['password'] + '@'
   else:
     authentication = ''
  
+  url = method + authentication + config['server'] + ":" + config['port'] + '/' + url_api
   try:
-    url = method + authentication + config['server'] + ":" + config['port'] + '/' + url_api
     if config['tls']:
-      r = requests.get (url, headers=headers, verify=False)
+      r = requests.get (url, headers=headers, verify=config['cert'] )
     else:
       r = requests.get (url, headers=headers ) 
-
     message = json.loads(r.text)
+    if r.status_code == 403: # unauthorized
+      print (r.text)
+      return {}
+    elif r.status_code != 200:
+      raise
+    return message
+  except:
+    print ("Failed to get elasticsaerch api : %s" % url_api)      
+    print (r.status_code)
+    print (r.text)
+    return ""
+
+
+def GetElasticAPI_cat (config, url_api ):
+  if config['verbose']:
+    print ("API request for : %s" % url_api)
+
+  headers = {'Content-Type': 'text/plain',}
+  if config['tls']:
+    method = 'https://'
+  else:
+    method = 'http://'
+  if config['auth']:
+    authentication = config['username'] + ":" + config['password'] + '@'
+  else:
+    authentication = ''
+ 
+  url = method + authentication + config['server'] + ":" + config['port'] + '/' + url_api
+  try:
+    if config['tls']:
+      r = requests.get (url, headers=headers, verify=config['cert'] )
+    else:
+      r = requests.get (url, headers=headers ) 
+    message = r.text
     if r.status_code != 200:
       raise
     return message
   except:
-    print ("Failed to get kibana api")      
+    print ("Failed to get elasticsaerch api : %s" % url_api)      
+    print (r.status_code)
     print (r.text)
     return ""
 
-def GetSpaceObject(config, space, Object, default):
+def GetKibanaAPI (config, url_api, post_data ):
+  if config['verbose']:
+    print ("API request for : %s" % url_api)
+
   headers = {'Content-Type': 'application/json', 'kbn-xsrf': 'true' }
 
   if config['tls']:
     method = 'https://'
   else:
     method = 'http://'
-
   if config['auth']:
     authentication = config['username'] + ":" + config['password'] + '@'
   else:
     authentication = ''
-  
-  #There is different api call for the default space
-  if default: 
-    api_query = '/api/saved_objects/_export'
-  else:
-    api_query = '/s/' + space + '/api/saved_objects/_export'
-
-  url = method + authentication + config['server'] + ":" + config['port'] + api_query 
-  post_data = json.dumps({ 'type': Object })
-
+ 
+  url = method + authentication + config['server'] + ":" + config['port'] + '/' + url_api
   try:
     if config['tls']:
-      print ("not verifying the tls cert!! - feature not available yet")
-      r = requests.post (url, headers=headers, data=post_data, verify=False)
+      r = requests.post (url, headers=headers, data=post_data, verify=config['cert'] )
     else:
       r = requests.post (url, headers=headers, data=post_data ) 
+    message = r.text #kibana spaces export is ndjson 
 
-    #need to save export.ndjson file
-    if r.status_code == 200:
-      if r.headers['content-disposition']:
-        export = r.content
-        return export
+    if r.status_code == 403: # unauthorized
+      print (r.text)
+      return {}
+    elif r.status_code != 200:
+      raise
+    return message
   except:
-    print ("Failed to export space objects")      
+    print ("Failed to get elasticsaerch api : %s" % url_api)      
+    print (r.status_code)
+    print (r.text)
     return ""
 
-def CalcChecksumFile(filename):
-  try:
-    BLOCKSIZE = 65536
-    hasher = hashlib.sha1()
-    with open(filename, 'rb') as afile:
-      buf = afile.read(BLOCKSIZE)
-      while len(buf) > 0:
-        hasher.update(buf)
+def CalcChecksum(filename):
+  if os.path.isfile(filename):
+    try:
+      BLOCKSIZE = 65536
+      hasher = hashlib.sha1()
+      with open(filename, 'rb') as afile:
         buf = afile.read(BLOCKSIZE)
-      file_sha1 = hasher.hexdigest()
-      filesize = os.path.getsize(filename)
-      return file_sha1, filesize
-  except:
-    print ("Failed to calculate sha1 or filesize")
-    sys.exit(1)
+        while len(buf) > 0:
+          hasher.update(buf)
+          buf = afile.read(BLOCKSIZE)
+        file_sha1 = hasher.hexdigest()
+        filesize = os.path.getsize(filename)
+
+        return file_sha1, filesize
+    except:
+      print ("Failed to calculate sha1 or filesize")
+      sys.exit(1)
+  else:
+    filesize = 0
+    file_sha1 = ''
+    return file_sha1, filesize
 
 def WriteFileJSON(config, FileName, message):
   FilePath = config['backup_folder'] +'/' + FileName
-  with open(FilePath, 'w') as outfile:
-    json.dump(message, outfile, indent=4)
+  file_sha1, filesize = CalcChecksum(FilePath)
+  messageSHA = hashlib.sha1(json.dumps(message).encode()).hexdigest()
 
-#Write ndjson file from byte array
-def WriteFileObject(config, FileName, message):
+  if file_sha1 != messageSHA : #only write file if contents are different 
+    if config['verbose']:
+      print ("Writing file %s" % FileName)
+    with open(FilePath, 'w') as outfile:
+      #json.dump(message, outfile)
+      json.dump(message, outfile, indent=4)
+
+def WriteFileTXT(config, FileName, message):
   FilePath = config['backup_folder'] +'/' + FileName
-  outfile = open(FilePath, 'wb')
-  outfile.write(message)
+  file_sha1, filesize = CalcChecksum(FilePath)
+  messageSHA = hashlib.sha1(message.encode()).hexdigest()
 
+  if file_sha1 != messageSHA :  
+    if config['verbose']:
+      print ("Writing file %s" % FileName)
+    outfile = open(FilePath, 'w')
+    outfile.write(message)
 
-def GetSpaceObjects(config, space, SeperateObjectTypes):
-  #which types of saved objects are exported - check this after Kibana is upgraded
-  SavedObjectTypes = ['config','url','index-pattern','query','visualization','canvas-element','canvas-workpad','graph-workspace','dashboard','map','search','tag','map','lens','infrastructure-ui-source','metrics-explorer-view','inventory-view','apm-indices']
+def APIGet (config, endpoint):
+  response = GetElasticAPI (config, endpoint['endpoint'] )
+  WriteFileJSON(config, endpoint['FileName'], response )
 
-  #Export all objects in a space
-  if space == 'default': #default space has a different api url
-    message = GetSpaceObject(config, space, SavedObjectTypes, True)
-  else:
-    message = GetSpaceObject(config, space, SavedObjectTypes, False)
-  FileName = "SavedObjects_" + space + ".ndjson"
-  WriteFileObject(config, FileName, message)
+  if 'export_spaces' in endpoint.keys():
+    if endpoint['export_spaces']:
+      for space in response:
+        if config['verbose']:
+          print ("Export Objects for Space : %s" % space['id'])
 
-  #Export each object as a seperate file
-  if SeperateObjectTypes:
-    for Object in SavedObjectTypes:
-      print ("Exporting Object : %s in space : %s" % (Object, space))
-      if space == 'default': #default space has a different api url
-        message = GetSpaceObject(config, space, Object, True)
-      else:
-        message = GetSpaceObject(config, space, Object, False)
+        #There is a different api call for the default space
+        if space['id'] == 'default':
+          api_query = '/api/saved_objects/_export'
+        else:
+          api_query = 's/' + space['id'] + '/api/saved_objects/_export'
 
-      FileName = "SavedObjects_" + space + "_" + Object + ".ndjson"
-      WriteFileObject(config, FileName, message)
+        post_data = json.dumps({ 'type': config['SavedObjectTypes'] })
 
+        response = GetKibanaAPI (config, api_query, post_data)
+        FileName = "SavedObjects_" + space['id'] + ".json"
+        WriteFileJSON(config, FileName, response )
 
-def GetSpaces(config, SeperateObjectTypes):
-  spaces_json = GetKibanaAPI(config, "api/spaces/space")
-  FileName = 'kibana_spaces.json'
-  WriteFileJSON(config, FileName, spaces_json)
+        if 'split_space_objects' in endpoint.keys():
+          if endpoint['split_space_objects']:
+            for Object in config['SavedObjectTypes']:
+              if config['verbose']:
+                print ("Exporting Object : %s in space : %s" % (Object, space['id']))
+              post_data = json.dumps({ 'type': Object })
+              response = GetKibanaAPI (config, api_query, post_data = post_data)
+              FileName = "SavedObjects_" + space['id'] + "_" + Object + ".json"
+              WriteFileJSON(config, FileName, response )
 
-  for space in spaces_json:
-    print ("Export Objects for Space : %s" % space['id'])
-    GetSpaceObjects(config, space['id'], SeperateObjectTypes)
-
-
-def GetRoles(config):
-  roles_json = GetKibanaAPI(config, "api/security/role")
-  FileName = 'kibana_roles.json'
-  WriteFileJSON(config, FileName, roles_json)
-
-
-
-#load config
 def LoadConfig(ConfigFile):
   try:
     if os.path.isfile(ConfigFile):
@@ -159,52 +195,106 @@ def LoadConfig(ConfigFile):
       config.read(ConfigFile)
       if 'KibanaBackup' in config._sections:
         config_dict = {s:dict(config.items(s)) for s in config.sections()}
-        RequiredConfig = ['server', 'port', 'backup_folder', 'tls', 'auth']
+        RequiredConfig = ['server', 'port', 'backup_folder', 'tls', 'auth', 'cert']
         for item in RequiredConfig:
           if item not in config_dict['KibanaBackup']:
             print ("Unable to verify configuration file")
             print ("Missing %s from configuration file" % item)
-            return None
-        #convert tls True/False string to bool
-        if config_dict['KibanaBackup']['tls'] == 'True':
-          config_dict['KibanaBackup']['tls'] = True
-        else:
-          config_dict['KibanaBackup']['tls'] = False
+            sys.exit()
 
-        if config_dict['KibanaBackup']['auth'] == 'True':
-          config_dict['KibanaBackup']['auth'] = True
-        else:
-          config_dict['KibanaBackup']['auth'] = False
- 
+        #convert text to bool
+        if config_dict['KibanaBackup']['tls'] == 'False':
+          config_dict['KibanaBackup']['tls']  = False
+        elif config_dict['KibanaBackup']['tls'] == 'True':
+          config_dict['KibanaBackup']['tls']  = True
+
+        if config_dict['KibanaBackup']['cert'] == 'False':
+          config_dict['KibanaBackup']['cert']  = False
+        elif config_dict['KibanaBackup']['cert'] == 'True':
+          config_dict['KibanaBackup']['cert']  = True
+
+        #set (defaults) for optional config
+        if 'verbose' in config_dict['KibanaBackup'].keys():
+          if config_dict['KibanaBackup']['verbose'] == 'False':
+            config_dict['KibanaBackup']['verbose']  = False
+          elif config_dict['KibanaBackup']['verbose'] == 'True':
+            config_dict['KibanaBackup']['verbose']  = True
+          else:
+            config_dict['KibanaBackup']['verbose'] = False
+
+        #The Saved Object Type keeps changing with new releases
+        if 'SavedObjectTypes' not in config_dict['KibanaBackup'].keys():
+          #list of object from kibana 8.12.2
+          config_dict['KibanaBackup']['SavedObjectTypes'] = [ "config","config-global","url","index-pattern","action","query","tag","graph-workspace","alert","search","visualization","event-annotation-group","dashboard","lens","cases","metrics-data-source","links","canvas-element","canvas-workpad","osquery-saved-query","osquery-pack","csp-rule-template","map","infrastructure-monitoring-log-view","threshold-explorer-view","uptime-dynamic-settings","synthetics-privates-locations","infrastructure-ui-source","inventory-view","metrics-explorer-view","apm-indices","apm-service-group","apm-custom-dashboards"]
+
         return config_dict['KibanaBackup']
-    return None
+    sys.exit()
   except:
-    return None
+    sys.exit()
 
 
 def main():
-  #which types of saved objects are exported
-  SavedObjectTypes = ['config','url','index-pattern','query','visualization','canvas-element','canvas-workpad','graph-workspace','dashboard','map','search','tag','map','lens','infrastructure-ui-source','metrics-explorer-view','inventory-view','apm-indices']
+ 
+  API_Endpoints_kibana = [
+     { "enabled" : True, "endpoint" : "api/security/role", "FileName" : "kibana_roles.json" },
+     #Exports Kibana Space Objects
+     #splitting space object into discrete files is disabled by default
+     { "enabled" : True, "endpoint" : "api/spaces/space", "FileName" : "kibana_spaces.json", "export_spaces" : True, "split_space_objects" : False },
+     ]
+
+  Endpoint_category = [ { "endpointList" : API_Endpoints_kibana, "enabled" : True }
+                      ]
+
 
   options = docopt(__doc__)
   if options['--config']:
     ConfigFile=options['--config']
     config = LoadConfig(ConfigFile)
-    if config is None:
-      print ("Failed to load config")
-      return
 
     if not os.path.exists(config['backup_folder']):
       os.mkdir(config['backup_folder'])
 
+    #loop through enabled API calls and create backups 
     if os.path.exists(config['backup_folder']):
-      GetRoles(config)
+      for endPointsList in Endpoint_category:
+        if endPointsList['enabled']: 
+          for i in endPointsList['endpointList']:
+            if i['enabled']:
+               if 'priv_index' in i.keys():
+                 if 'priv_index_name' in i.keys():
+                   privileges_fail = True
+                   for privileges_indices in privileges['indices']:
+                     for j in privileges_indices['names']:
+                       if i['priv_index_name'] in j: 
+                         if (set(i['priv_index']) & set(privileges_indices['privileges'])):
+                           privileges_fail = False
+                   if privileges_fail:
+                     if config['verbose']:
+                       print ("Account does not have required index privilege for API call (%s), Requires index privilege (%s) for indices : %s " % (i['endpoint'], i['priv_index'], i['priv_index_name']))
+                     continue
 
-      #set to true if you want to export a seperate file for each object type in a space
-      SeperateObjectTypes = False 
-      GetSpaces(config, SeperateObjectTypes)
+                 else:
+                   privileges_fail = True
+                   for privileges_indices in privileges['indices']:
+                     if (set(i['priv_index']) & set(privileges_indices['privileges'])):
+                       privileges_fail = False
+                   if privileges_fail:
+                     if config['verbose']:
+                       print ("Account does not have required index privilege for API call (%s), Requires index privilege : %s " % (i['endpoint'], i['priv_index']))
+                     continue
 
+               if 'priv_cluster' in i.keys():
+                 if not (set(i['priv_cluster']) & set(privileges['cluster'])):
+                   if config['verbose']:
+                     print ("Account does not have required cluster privilege for API call (%s), Requires cluster privilege : %s " % (i['endpoint'], i['priv_cluster']))  
+                   continue
 
+               # if no privilege issues found, make api call 
+               if i['endpoint'].startswith('_cat'):
+                 APIGetCAT (config, i)
+               else:
+                 APIGet (config, i)
+
+  
 if __name__ == "__main__":
   main()
-
