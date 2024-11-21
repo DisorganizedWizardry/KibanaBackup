@@ -187,6 +187,15 @@ def APIGet (config, endpoint):
               response = GetKibanaAPI (config, api_query, post_data = post_data)
               FileName = "SavedObjects_" + space['id'] + "_" + Object + ".json"
               WriteFileJSON(config, FileName, response )
+ 
+  #Fleet policies
+  if 'split_by_keys_items_id' in endpoint.keys():
+    if endpoint['split_by_keys_items_id']:
+      for item in response["items"]:
+        if 'id' in item:
+          FileName = endpoint['FileName'].replace('.json','') + '-' + item['id'] + '.json'
+          policy = GetElasticAPI (config, endpoint['endpoint'] + '/' + item['id'] )
+          WriteFileJSON(config, FileName, policy )
 
 def LoadConfig(ConfigFile):
   try:
@@ -240,6 +249,8 @@ def main():
      #Exports Kibana Space Objects
      #splitting space object into discrete files is disabled by default
      { "enabled" : True, "endpoint" : "api/spaces/space", "FileName" : "kibana_spaces.json", "export_spaces" : True, "split_space_objects" : False },
+     { "enabled" : True, "endpoint" : "api/fleet/agent_policies", "FileName" : "fleet_agent_policies.json", "split_by_keys_items_id" : True },
+
      ]
 
   Endpoint_category = [ { "endpointList" : API_Endpoints_kibana, "enabled" : True }
