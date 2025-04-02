@@ -30,13 +30,13 @@ Some items that are backed up are:
 * Index template and component templates
 * ilm policies
 * enrich policies
-* logtash and ingest pipelines
+* logstash and ingest pipelines
 * aliases
 * datastreams
-* tranforms
+* transforms
 * watcher
 * user and role permissions
-* cluter stats and montoring data
+* cluster stats and monitoring data
 * ... and more
 
 
