@@ -98,8 +98,16 @@ def CalcChecksum(filename):
     file_sha1 = ''
     return file_sha1, filesize
 
-def WriteFileJSON(config, FileName, message):
-  FilePath = config['backup_folder'] +'/' + FileName
+def WriteFileJSON(config, FolderName, FileName, message):
+  if FolderName:
+    if config['folders']:
+      FolderPath = config['backup_folder'] +'/' + FolderName
+      os.makedirs(FolderPath, exist_ok = True)
+      FilePath = FolderPath +'/' + FileName
+    else:
+      FilePath = config['backup_folder'] +'/' + FileName
+  else:
+    FilePath = config['backup_folder'] +'/' + FileName
   file_sha1, filesize = CalcChecksum(FilePath)
   messageSHA = hashlib.sha1(json.dumps(message).encode()).hexdigest()
 
@@ -122,9 +130,14 @@ def WriteFileTXT(config, FileName, message):
     outfile.write(message)
 
 def APIGet (config, endpoint):
+  if 'FolderName' in endpoint.keys():
+    FolderName = endpoint['FolderName']
+  else:
+    FolderName = None
+
   #one file with all contents
   response = GetElasticAPI (config, endpoint['endpoint'] )
-  WriteFileJSON(config, endpoint['FileName'], response )
+  WriteFileJSON(config, FolderName, endpoint['FileName'], response )
 
   #multiple if statements to split output into multiple files
   # example : for create one file per index templates
@@ -134,7 +147,7 @@ def APIGet (config, endpoint):
     if endpoint['split_by_keys']:
       for item in response.keys():
         FileName = endpoint['FileName'].replace('.json','') + '-' + item + '.json'
-        WriteFileJSON(config, FileName, response[item])
+        WriteFileJSON(config, FolderName, FileName, response[item])
       
   if 'split_by_keys_name' in endpoint.keys():
     if endpoint['split_by_keys_name']:
@@ -142,7 +155,7 @@ def APIGet (config, endpoint):
         for item_name in response[item]:
           if 'name' in item_name.keys():
             FileName = endpoint['FileName'].replace('.json','') + '-' + item_name['name'] + '.json'
-            WriteFileJSON(config, FileName, item_name)
+            WriteFileJSON(config, FolderName, FileName, item_name)
 
   #looks for json with ['hits']['hits'][] and then value of '_id' is appended to the filename
   elif 'split_by_hits_hits' in endpoint.keys():
@@ -152,14 +165,14 @@ def APIGet (config, endpoint):
           for item in response['hits']['hits']:
             if '_id' in item.keys():
               FileName = endpoint['FileName'].replace('.json','') + '-' + item[endpoint['split_key_id']] + '.json'
-              WriteFileJSON(config, FileName, item)
+              WriteFileJSON(config, FolderName, FileName, item)
 
   elif 'split_by_name_keys' in endpoint.keys():
     if endpoint['split_by_name_keys']:
       if endpoint['split_key'] in response.keys():
         for item in response[endpoint['split_key']].keys():
           FileName = endpoint['FileName'].replace('.json','') + '-' + item + '.json'
-          WriteFileJSON(config, FileName, response[endpoint['split_key']][item])
+          WriteFileJSON(config, FolderName, FileName, response[endpoint['split_key']][item])
 
   elif 'split_by_name_list' in endpoint.keys():
     if endpoint['split_by_name_list']:
@@ -167,7 +180,7 @@ def APIGet (config, endpoint):
         for item in response[endpoint['split_key']]:
           if endpoint['split_key_id'] in item.keys():
             FileName = endpoint['FileName'].replace('.json','') + '-' + item[endpoint['split_key_id']] + '.json'
-            WriteFileJSON(config, FileName, item)
+            WriteFileJSON(config, FolderName, FileName, item)
 
 def APIGetCAT (config, endpoint):
   response = GetElasticAPI_cat (config, endpoint['endpoint'] )
@@ -202,6 +215,16 @@ def LoadConfig(ConfigFile):
           else:
             config_dict['ElasticBackup']['verbose'] = False
 
+        if 'folders' in config_dict['ElasticBackup'].keys():
+          if config_dict['ElasticBackup']['folders'] == 'False':
+            config_dict['ElasticBackup']['folders']  = False
+          elif config_dict['ElasticBackup']['folders'] == 'True':
+            config_dict['ElasticBackup']['folders']  = True
+          else:
+            config_dict['ElasticBackup']['folders']  = False
+        else:
+          config_dict['ElasticBackup']['folders']  = False
+
         return config_dict['ElasticBackup']
     sys.exit()
   except:
@@ -212,13 +235,13 @@ def main():
  
   API_Endpoints_config = [ 
      { "enabled" : True, "endpoint" : "_alias", "FileName" : "alias.json", 'priv_index': ['view_index_metadata','manage','all'] }, 
-     { "enabled" : True, "endpoint" : "_component_template/*", "FileName" : "component_template.json", 'split_by_keys_name': True, 'priv_cluster': ['manage_index_templates','monitor','manage','all'] }, 
-     { "enabled" : True, "endpoint" : "_data_stream", "FileName" : "data_stream.json", 'split_by_keys_name': True, 'priv_index': ['view_index_metadata','manage','all'] }, 
+     { "enabled" : True, "endpoint" : "_component_template/*", "FileName" : "component_template.json", "FolderName": "component_template", 'split_by_keys_name': True, 'priv_cluster': ['manage_index_templates','monitor','manage','all'] }, 
+     { "enabled" : True, "endpoint" : "_data_stream", "FileName" : "data_stream.json", "FolderName": "data_stream", 'split_by_keys_name': True, 'priv_index': ['view_index_metadata','manage','all'] }, 
      { "enabled" : True, "endpoint" : "_enrich/policy", "FileName" : "enrich_policy.json", 'priv_cluster': ['monitor_enrich','manage_enrich','manage','all'] }, #test on different cluster 
-     { "enabled" : True, "endpoint" : "_index_template", "FileName" : "index_template.json", 'split_by_keys_name': True, 'priv_cluster': ['manage_index_templates','monitor','manage','all'] }, 
-     { "enabled" : True, "endpoint" : "_ilm/policy", "FileName" : "ilm_policy.json", 'split_by_keys': True, 'priv_cluster': ['read_ilm','manage_ilm','manage','all'] }, 
+     { "enabled" : True, "endpoint" : "_index_template", "FileName" : "index_template.json", "FolderName": "index_template", 'split_by_keys_name': True, 'priv_cluster': ['manage_index_templates','monitor','manage','all'] }, 
+     { "enabled" : True, "endpoint" : "_ilm/policy", "FileName" : "ilm_policy.json", "FolderName": "ilm_policy", 'split_by_keys': True, 'priv_cluster': ['read_ilm','manage_ilm','manage','all'] }, 
      { "enabled" : True, "endpoint" : "_inference/_all", "FileName" : "inference_all.json", 'priv_cluster': ['manage','all'] }, #test on different cluster 
-     { "enabled" : True, "endpoint" : "_ingest/pipeline", "FileName" : "ingest_pipeline.json", 'split_by_keys': True, 'priv_cluster': ['read_pipeline','manage_ingest_pipelines','manage_pipeline','manage','all'] }, 
+     { "enabled" : True, "endpoint" : "_ingest/pipeline", "FileName" : "ingest_pipeline.json", "FolderName": "ingest_pipeline", 'split_by_keys': True, 'priv_cluster': ['read_pipeline','manage_ingest_pipelines','manage_pipeline','manage','all'] }, 
      { "enabled" : True, "endpoint" : "_logstash/pipeline", "FileName" : "logstash_pipeline.json", 'priv_cluster': ['manage_logstash_pipelines','manage','all'] }, #test on different cluster
      { "enabled" : True, "endpoint" : "_ml/anomaly_detectors", "FileName" : "ml_anomaly_detectors.json", 'priv_cluster': ['monitor_ml','manage_ml','monitor','manage','all'] }, 
      { "enabled" : True, "endpoint" : "_ml/calendars/_all", "FileName" : "ml_calendars_all.json", 'priv_cluster': ['monitor_ml','manage_ml','monitor','manage','all'] }, #test on different cluster 
@@ -227,8 +250,8 @@ def main():
      { "enabled" : True, "endpoint" : "_ml/filters/", "FileName" : "ml_filters.json", 'priv_cluster': ['manage_ml','manage','all'] }, #test on different cluster 
      { "enabled" : True, "endpoint" : "_ml/datafeeds/", "FileName" : "ml_datafeeds.json", 'priv_cluster': ['monitor_ml','manage_ml','monitor','manage','all'] },
      { "enabled" : True, "endpoint" : "_snapshot", "FileName" : "snapshot.json", 'priv_cluster': ['monitor_snapshot','create_snapshot','manage','all'] },
-     { "enabled" : True, "endpoint" : "_transform", "FileName" : "transform.json", 'split_by_name_list' : True, 'split_key': 'transforms', 'split_key_id' : 'id', 'priv_cluster': ['monitor_data_frame_transforms','monitor_transform','manage_data_frame_transforms','manage_transform','monitor','manage','all'] },
-     { "enabled" : True, "endpoint" : "_watcher/_query/watches", "FileName" : "watcher_query_watches.json", 'split_by_name_list' : True, 'split_key': 'watches', 'split_key_id' : '_id', 'priv_cluster': ['monitor_watcher','manage_watcher','monitor','manage','all'] },
+     { "enabled" : True, "endpoint" : "_transform", "FileName" : "transform.json", "FolderName": "transform", 'split_by_name_list' : True, 'split_key': 'transforms', 'split_key_id' : 'id', 'priv_cluster': ['monitor_data_frame_transforms','monitor_transform','manage_data_frame_transforms','manage_transform','monitor','manage','all'] },
+     { "enabled" : True, "endpoint" : "_watcher/_query/watches", "FileName" : "watcher_query_watches.json", "FolderName" : "watcher_query_watches", 'split_by_name_list' : True, 'split_key': 'watches', 'split_key_id' : '_id', 'priv_cluster': ['monitor_watcher','manage_watcher','monitor','manage','all'] },
      # remove key 'priv_index_name' if this api call has issues (possible with different account permissions)
      { "enabled" : True, "endpoint" : ".watches/_search", "FileName" : "watches_search.json", 'split_by_hits_hits': True, 'split_key_id' : '_id', 'priv_index_name': '.watches', 'priv_index': ['read','all'] }, 
       ]
@@ -254,10 +277,10 @@ def main():
      { "enabled" : True, "endpoint" : "_security/privilege", "FileName" : "security_privilege.json", 'split_by_keys': True, 'priv_cluster': ['read_security','manage_security','all'] },  #verify on different cluster 
      { "enabled" : True, "endpoint" : "_security/_query/api_key", "FileName" : "security_query_api_key.json", 'priv_cluster': ['manage_own_api_key','read_security','manage_api_key','manage_security','all'] },
      { "enabled" : True, "endpoint" : "_security/role_mapping", "FileName" : "security_role_mapping.json", 'priv_cluster': ['read_security','manage_security','all'] },
-     { "enabled" : True, "endpoint" : "_security/role", "FileName" : "security_role.json", 'split_by_keys': True, 'priv_cluster': ['read_security','manage_security','all'] },
+     { "enabled" : True, "endpoint" : "_security/role", "FileName" : "security_role.json", "FolderName": "security_role", 'split_by_keys': True, 'priv_cluster': ['read_security','manage_security','all'] },
      { "enabled" : True, "endpoint" : "_security/service", "FileName" : "security_service.json", 'priv_cluster': ['manage_service_account','read_security','manage_security','all']  }, 
      { "enabled" : True, "endpoint" : "_security/settings", "FileName" : "security_settings.json", 'priv_cluster': ['read_security','manage_security','all'] },
-     { "enabled" : True, "endpoint" : "_security/user", "FileName" : "security_user.json", 'split_by_keys': True, 'priv_cluster': ['read_security','manage_security','all'] },
+     { "enabled" : True, "endpoint" : "_security/user", "FileName" : "security_user.json", "FolderName": "security_user", 'split_by_keys': True, 'priv_cluster': ['read_security','manage_security','all'] },
      { "enabled" : True, "endpoint" : "_security/user/_privileges", "FileName" : "security_user_privileges.json" },
      { "enabled" : True, "endpoint" : "_slm/policy", "FileName" : "slm_policy.json", 'split_by_keys': True, 'priv_cluster': ['read_slm','manage_slm','manage','all'] }, 
      { "enabled" : True, "endpoint" : "_synonyms", "FileName" : "synonyms.json", 'priv_cluster': ['manage_search_synonyms','manage','all'] }, 
@@ -296,7 +319,7 @@ def main():
      { "enabled" : True, "endpoint" : "/_searchable_snapshots/cache/stats", "FileName" : "searchable_snapshots_cache_stats.json", 'priv_cluster': ['manage','all'] },
      { "enabled" : True, "endpoint" : "_snapshot/_status", "FileName" : "snapshot_status.json", 'priv_cluster': ['monitor_snapshot','create_snapshot','manage','all'] }, 
      { "enabled" : True, "endpoint" : "_stats", "FileName" : "stats.json" },
-     { "enabled" : True, "endpoint" : "_transform/_stats", "FileName" : "transform_stats.json", 'split_by_name_list' : True, 'split_key': 'transforms', 'split_key_id' : 'id', 'priv_cluster': ['monitor_data_frame_transforms','monitor_transform','manage_data_frame_transforms','manage_transform,monitor,manage','all']}, 
+     { "enabled" : True, "endpoint" : "_transform/_stats", "FileName" : "transform_stats.json", "FolderName": "transform_stats", 'split_by_name_list' : True, 'split_key': 'transforms', 'split_key_id' : 'id', 'priv_cluster': ['monitor_data_frame_transforms','monitor_transform','manage_data_frame_transforms','manage_transform,monitor,manage','all']}, 
      { "enabled" : True, "endpoint" : "_watcher/stats", "FileName" : "watcher_stats.json", 'priv_cluster': ['monitor_watcher','manage_watcher','monitor','manage','all'] }, 
      { "enabled" : True, "endpoint" : "_xpack/usage", "FileName" : "xpack_usage.json", 'priv_cluster': ['monitor','manage','all'] }
       ] 
@@ -392,4 +415,3 @@ def main():
   
 if __name__ == "__main__":
   main()
-
