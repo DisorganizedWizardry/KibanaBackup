@@ -43,3 +43,8 @@ Some items that are backed up are:
 # Installation
 
 Please update the KibanaBackup.conf to match your environment.
+
+# Changes
+
+2025-04-01
+* Added the ability to create folders for some items in ElasticBackup. For example, all index templates can now be writted into a sub folder called index_templates.
