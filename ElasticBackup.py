@@ -236,6 +236,7 @@ def main():
   API_Endpoints_config = [ 
      { "enabled" : True, "endpoint" : "_alias", "FileName" : "alias.json", 'priv_index': ['view_index_metadata','manage','all'] }, 
      { "enabled" : True, "endpoint" : "_component_template/*", "FileName" : "component_template.json", "FolderName": "component_template", 'split_by_keys_name': True, 'priv_cluster': ['manage_index_templates','monitor','manage','all'] }, 
+     { "enabled" : True, "endpoint" : "_cluster/settings", "FileName" : "cluster_settings.json", 'priv_cluster': ['monitor', 'manage', 'all' ] },
      { "enabled" : True, "endpoint" : "_data_stream", "FileName" : "data_stream.json", "FolderName": "data_stream", 'split_by_keys_name': True, 'priv_index': ['view_index_metadata','manage','all'] }, 
      { "enabled" : True, "endpoint" : "_enrich/policy", "FileName" : "enrich_policy.json", 'priv_cluster': ['monitor_enrich','manage_enrich','manage','all'] }, #test on different cluster 
      { "enabled" : True, "endpoint" : "_index_template", "FileName" : "index_template.json", "FolderName": "index_template", 'split_by_keys_name': True, 'priv_cluster': ['manage_index_templates','monitor','manage','all'] }, 
@@ -249,6 +250,7 @@ def main():
      { "enabled" : True, "endpoint" : "_ml/data_frame/analytics", "FileName" : "ml_data_frameanalytics.json", 'priv_cluster': ['monitor_ml','manage_ml','monitor','manage','all'] }, #test on different cluster
      { "enabled" : True, "endpoint" : "_ml/filters/", "FileName" : "ml_filters.json", 'priv_cluster': ['manage_ml','manage','all'] }, #test on different cluster 
      { "enabled" : True, "endpoint" : "_ml/datafeeds/", "FileName" : "ml_datafeeds.json", 'priv_cluster': ['monitor_ml','manage_ml','monitor','manage','all'] },
+     { "enabled" : True, "endpoint" : "_ml/trained_models/", "FileName" : "ml_trained_models.json", 'priv_cluster': ['monitor_ml','manage_ml','monitor','manage','all'] },
      { "enabled" : True, "endpoint" : "_snapshot", "FileName" : "snapshot.json", 'priv_cluster': ['monitor_snapshot','create_snapshot','manage','all'] },
      { "enabled" : True, "endpoint" : "_transform", "FileName" : "transform.json", "FolderName": "transform", 'split_by_name_list' : True, 'split_key': 'transforms', 'split_key_id' : 'id', 'priv_cluster': ['monitor_data_frame_transforms','monitor_transform','manage_data_frame_transforms','manage_transform','monitor','manage','all'] },
      { "enabled" : True, "endpoint" : "_watcher/_query/watches", "FileName" : "watcher_query_watches.json", "FolderName" : "watcher_query_watches", 'split_by_name_list' : True, 'split_key': 'watches', 'split_key_id' : '_id', 'priv_cluster': ['monitor_watcher','manage_watcher','monitor','manage','all'] },
