@@ -48,5 +48,6 @@ Please update the KibanaBackup.conf to match your environment.
 
 2025-04-01
 * Added the ability to create folders for some items in ElasticBackup. For example, all index templates can now be writted into a sub folder called index_templates.
+
 2025-04-08
 * Added API calls for _cluster/settings and _ml/trained_models
